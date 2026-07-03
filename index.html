@@ -28,6 +28,9 @@
                     <i class="fa-solid fa-magnifying-glass"></i>
                     <input type="search" id="searchInput" placeholder="Search stories&hellip;" aria-label="Search stories" autocomplete="off">
                 </div>
+                <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
                 <button class="btn btn-primary" id="openModalBtn">
                     <i class="fa-solid fa-pen-nib"></i> Write
                 </button>
@@ -44,25 +47,8 @@
     </div>
 
     <main class="main-container">
-        <!-- Hero Featured Article -->
-        <section class="featured-section">
-            <a href="#" class="featured-card-link">
-                <div class="featured-card">
-                    <div class="featured-img-wrapper">
-                        <div class="featured-img" style="background-image: url('https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=1200&q=80');"></div>
-                    </div>
-                    <div class="featured-content">
-                        <span class="category-tag">Design Philosophy</span>
-                        <h1 class="featured-title">The Art of Minimalist Typography in Modern Digital Journalism</h1>
-                        <p class="featured-excerpt">How modern publications are stripping away the digital noise to return to what matters most: the raw relationship between the reader, the writer, and the written word.</p>
-                        <div class="author-meta">
-                            <span class="author-name">By Julian Vane</span>
-                            <span class="read-time">&bull; 6 min read</span>
-                        </div>
-                    </div>
-                </div>
-            </a>
-        </section>
+        <!-- Hero Featured Article (rendered dynamically from the article data) -->
+        <section class="featured-section" id="featuredSection"></section>
 
         <div class="section-divider-container">
             <span class="divider-label" id="feedLabel">The Feed</span>
@@ -77,57 +63,9 @@
             </button>
         </div>
 
-        <!-- Articles Grid -->
+        <!-- Articles Grid (rendered dynamically from the article data) -->
         <section class="articles-grid-section">
-            <div class="articles-grid">
-                <!-- Article 1 -->
-                <article class="article-card">
-                    <div class="card-img-wrapper">
-                        <div class="card-img" style="background-image: url('https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=600&q=80');"></div>
-                    </div>
-                    <div class="card-body">
-                        <span class="category-tag">Technology</span>
-                        <h3 class="card-title"><a href="#">Decentralizing the Future Web</a></h3>
-                        <p class="card-excerpt">A deep dive into how self-hosting and peer-to-peer networks are carving out space away from monolithic cloud architectures.</p>
-                        <div class="author-meta">
-                            <span class="author-name">Elena Rostova</span>
-                            <span class="read-time">&bull; 4 min read</span>
-                        </div>
-                    </div>
-                </article>
-
-                <!-- Article 2 -->
-                <article class="article-card">
-                    <div class="card-img-wrapper">
-                        <div class="card-img" style="background-image: url('https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?auto=format&fit=crop&w=600&q=80');"></div>
-                    </div>
-                    <div class="card-body">
-                        <span class="category-tag">Environment</span>
-                        <h3 class="card-title"><a href="#">Architecting Sustainable Urban Sanctuaries</a></h3>
-                        <p class="card-excerpt">Bridging the gap between brutalist structural design and native ecological systems within dense metropolis centers.</p>
-                        <div class="author-meta">
-                            <span class="author-name">Marcus Vance</span>
-                            <span class="read-time">&bull; 8 min read</span>
-                        </div>
-                    </div>
-                </article>
-
-                <!-- Article 3 -->
-                <article class="article-card">
-                    <div class="card-img-wrapper">
-                        <div class="card-img" style="background-image: url('https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=600&q=80');"></div>
-                    </div>
-                    <div class="card-body">
-                        <span class="category-tag">Culture</span>
-                        <h3 class="card-title"><a href="#">The Psychology of Intentional Code</a></h3>
-                        <p class="card-excerpt">Why treating software development as a literary art form leads to cleaner architecture, less technical debt, and more resilient systems.</p>
-                        <div class="author-meta">
-                            <span class="author-name">K. Soleymani</span>
-                            <span class="read-time">&bull; 5 min read</span>
-                        </div>
-                    </div>
-                </article>
-            </div>
+            <div class="articles-grid" id="articlesGrid"></div>
             <p class="empty-state" id="emptyState" hidden>No stories match your search.</p>
         </section>
     </main>
@@ -150,6 +88,7 @@
                 <div class="author-meta reader-meta">
                     <span class="author-name" id="readerAuthor"></span>
                     <span class="read-time" id="readerReadTime"></span>
+                    <span class="read-time" id="readerDate"></span>
                     <button type="button" class="btn btn-secondary reader-share" id="readerShareBtn">
                         <i class="fa-solid fa-link"></i> <span>Share</span>
                     </button>

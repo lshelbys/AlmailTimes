@@ -820,6 +820,84 @@ body {
     color: var(--color-accent);
 }
 
+/* --- Theme Toggle --- */
+.theme-toggle {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    transition: all 0.25s var(--transition-smooth);
+}
+
+.theme-toggle:hover {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+    transform: rotate(15deg);
+}
+
+/* --- Dark Mode ---
+   Same burgundy editorial identity on a dark canvas: only the custom
+   properties and the few hardcoded surface colors change. */
+body.dark-mode {
+    --bg-main: #1b1512;
+    --color-accent: #d1798f;
+    --color-accent-hover: #dd93a6;
+    --color-accent-alpha: rgba(209, 121, 143, 0.08);
+    --text-primary: #f2e9de;
+    --text-secondary: #b5a495;
+    --border-light: rgba(209, 121, 143, 0.18);
+}
+
+body.dark-mode .navbar {
+    background-color: rgba(27, 21, 18, 0.9);
+}
+
+/* The accent is lighter in dark mode, so filled controls flip to dark text. */
+body.dark-mode .btn-primary,
+body.dark-mode .bookmark-btn.saved,
+body.dark-mode .delete-btn.armed {
+    color: #1b1512;
+}
+
+body.dark-mode .btn-primary:hover {
+    box-shadow: 0 4px 15px rgba(209, 121, 143, 0.25);
+}
+
+body.dark-mode .nav-search {
+    background-color: rgba(255, 255, 255, 0.06);
+    border-color: var(--border-light);
+}
+
+body.dark-mode .nav-search:focus-within,
+body.dark-mode .modal-form input:focus,
+body.dark-mode .modal-form textarea:focus {
+    background-color: #251d19;
+}
+
+body.dark-mode .modal-form input,
+body.dark-mode .modal-form textarea {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode .card-action-btn {
+    background-color: rgba(27, 21, 18, 0.92);
+}
+
+body.dark-mode .modal-overlay {
+    background-color: rgba(0, 0, 0, 0.6);
+}
+
+body.dark-mode .modal-box {
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
+}
+
 /* --- Respect Reduced-Motion Preferences --- */
 @media (prefers-reduced-motion: reduce) {
     *,

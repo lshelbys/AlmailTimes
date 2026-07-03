@@ -1,76 +1,54 @@
+/* ============================================================
+   Chronicle — front-end application logic (vanilla JS)
+
+   Modules:
+     Store      localStorage wrapper (safe in private mode)
+     Articles   the article data model: seed data + reader-published
+     Theme      light/dark mode with persistence
+     Feed       sorting, filtering, and rendering of the grid + hero
+     Reader     the article dialog, view counting, share deep-links
+     Composer   the "Draft an Essay" form, drafts, live word count
+     Progress   the top reading-progress bar
+     Router     #latest / #trending / #saved / #story= deep links
+   ============================================================ */
+
 document.addEventListener('DOMContentLoaded', () => {
-    /* --- UI Elements --- */
-    const writeModal = document.getElementById('writeModal');
-    const readerModal = document.getElementById('readerModal');
-    const openModalBtn = document.getElementById('openModalBtn');
-    const closeModalBtn = document.getElementById('closeModalBtn');
-    const saveDraftBtn = document.getElementById('cancelModalBtn');
-    const readerCloseBtn = document.getElementById('readerCloseBtn');
-    const readerShareBtn = document.getElementById('readerShareBtn');
-    const articleForm = document.getElementById('articleForm');
-    const articlesGrid = document.querySelector('.articles-grid');
-    const featuredSection = document.querySelector('.featured-section');
-    const featuredCard = document.querySelector('.featured-card');
-    const progressBar = document.getElementById('readingProgress');
-    const searchInput = document.getElementById('searchInput');
-    const navLinks = document.querySelectorAll('.nav-links a[data-view]');
-    const feedLabel = document.getElementById('feedLabel');
-    const feedStatus = document.getElementById('feedStatus');
-    const feedStatusText = document.getElementById('feedStatusText');
-    const clearFilterBtn = document.getElementById('clearFilter');
-    const emptyState = document.getElementById('emptyState');
-    const postContent = document.getElementById('postContent');
-    const wordCountEl = document.getElementById('wordCount');
+    'use strict';
 
-    const STORAGE_KEY = 'chronicle.articles';
-    const DRAFT_KEY = 'chronicle.draft';
-    const VIEWS_KEY = 'chronicle.views';
-    const BOOKMARKS_KEY = 'chronicle.bookmarks';
+    /* ================= Store ================= */
 
-    // Pool of imagery for reader-published stories, picked deterministically
-    // per title so the same story keeps the same photo across reloads.
-    const IMAGE_POOL = [
-        'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=600&q=80',
-        'https://images.unsplash.com/photo-1488190211105-8b0e65b80b4e?auto=format&fit=crop&w=600&q=80',
-        'https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=600&q=80',
-        'https://images.unsplash.com/photo-1519337265831-281ec6cc8514?auto=format&fit=crop&w=600&q=80',
-        'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&w=600&q=80',
-        'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=600&q=80',
-    ];
+    const Store = {
+        read(key, fallback) {
+            try {
+                const raw = localStorage.getItem(key);
+                return raw ? JSON.parse(raw) : fallback;
+            } catch (err) {
+                return fallback;
+            }
+        },
+        write(key, value) {
+            try {
+                localStorage.setItem(key, JSON.stringify(value));
+            } catch (err) {
+                /* Storage may be unavailable (private mode / quota); fail silently. */
+            }
+        },
+        remove(key) {
+            try { localStorage.removeItem(key); } catch (err) { /* ignore */ }
+        },
+    };
 
-    // Baseline timestamp so seed articles sort as "older" than anything freshly published.
-    const SEED_BASE_TIME = Date.parse('2026-06-01T12:00:00Z');
+    const KEYS = {
+        articles: 'chronicle.articles',
+        draft: 'chronicle.draft',
+        views: 'chronicle.views',
+        bookmarks: 'chronicle.bookmarks',
+        theme: 'chronicle.theme',
+    };
 
-    // Current feed view. `section` drives ordering; category/query filter what's shown.
-    const state = { section: 'home', category: null, query: '' };
+    /* ================= Utilities ================= */
 
-    let lastFocusedElement = null;
-
-    /* --- Storage Helpers --- */
-
-    function readJSON(key, fallback) {
-        try {
-            const raw = localStorage.getItem(key);
-            return raw ? JSON.parse(raw) : fallback;
-        } catch (err) {
-            return fallback;
-        }
-    }
-
-    function writeJSON(key, value) {
-        try {
-            localStorage.setItem(key, JSON.stringify(value));
-        } catch (err) {
-            /* Storage may be unavailable (private mode / quota); fail silently. */
-        }
-    }
-
-    const viewCounts = readJSON(VIEWS_KEY, {});
-    let bookmarks = readJSON(BOOKMARKS_KEY, []);
-
-    /* --- Text Helpers --- */
-
-    function escapeHTML(value) {
+    function esc(value) {
         return String(value)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -91,224 +69,366 @@ document.addEventListener('DOMContentLoaded', () => {
         return String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'story';
     }
 
-    // Deterministic image pick so a story keeps its photo across reloads.
+    function formatDate(timestamp) {
+        return new Date(timestamp).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    /* ================= Articles (data model) ================= */
+
+    // Pool of imagery for reader-published stories, picked deterministically
+    // per title so the same story keeps the same photo across reloads.
+    const IMAGE_POOL = [
+        'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1488190211105-8b0e65b80b4e?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1519337265831-281ec6cc8514?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=600&q=80',
+    ];
+
     function pickImage(title) {
         let hash = 0;
         for (const ch of String(title)) hash = (hash + ch.charCodeAt(0)) % 997;
         return IMAGE_POOL[hash % IMAGE_POOL.length];
     }
 
-    // Guarantee a unique id even if two stories share a title.
-    const usedIds = new Set();
-    function uniqueId(title) {
-        const base = slugify(title);
-        let id = base;
-        let n = 2;
-        while (usedIds.has(id)) id = `${base}-${n++}`;
-        usedIds.add(id);
-        return id;
-    }
+    const SEED_ARTICLES = [
+        {
+            id: 'the-art-of-minimalist-typography-in-modern-digital-journalism',
+            title: 'The Art of Minimalist Typography in Modern Digital Journalism',
+            category: 'Design Philosophy',
+            description: 'How modern publications are stripping away the digital noise to return to what matters most: the raw relationship between the reader, the writer, and the written word.',
+            author: 'Julian Vane',
+            readTime: 6,
+            date: Date.parse('2026-06-28T09:00:00Z'),
+            featured: true,
+            image: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=1200&q=80',
+            content: `There is a quiet revolution happening in digital publishing, and it is defined not by what is being added, but by what is being taken away. The pop-ups are disappearing. The autoplaying video rails are falling silent. In their place: a single column of well-set type, generous margins, and the confidence to let words carry the room.
 
-    /* --- Display Current Date --- */
-    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    document.getElementById('currentDate').textContent =
-        new Date().toLocaleDateString('en-US', dateOptions);
+Typography, it turns out, was never a decoration layered on top of journalism. It is the journalism. A line length that lets the eye travel home without losing its place. A type size that respects the reader's distance from the screen. Contrast that survives a sunlit train window. These are editorial decisions as consequential as any headline.
 
-    /* --- Bookmarks --- */
+The publications leading this return to restraint have discovered something their metrics could not tell them: trust is typographic. A page that feels considered signals an editorial process that is considered. Readers may not name the serif, but they feel the intention behind it.
 
-    function isBookmarked(id) {
-        return bookmarks.includes(id);
-    }
+The lesson for anyone building a publication today is simple, and old. Set the type well, get out of the way, and let the relationship between writer and reader be the interface.`,
+        },
+        {
+            id: 'decentralizing-the-future-web',
+            title: 'Decentralizing the Future Web',
+            category: 'Technology',
+            description: 'A deep dive into how self-hosting and peer-to-peer networks are carving out space away from monolithic cloud architectures.',
+            author: 'Elena Rostova',
+            readTime: 4,
+            date: Date.parse('2026-06-30T14:00:00Z'),
+            image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=600&q=80',
+            content: `For a decade, the answer to every infrastructure question was the same: put it in the cloud. Rent the compute, rent the storage, rent — ultimately — the terms of your own existence online. That bargain made sense when the alternative was a server humming in a closet. It makes less sense now.
 
-    function toggleBookmark(id, btn) {
-        bookmarks = isBookmarked(id) ? bookmarks.filter((b) => b !== id) : [...bookmarks, id];
-        writeJSON(BOOKMARKS_KEY, bookmarks);
-        paintBookmarkBtn(btn, isBookmarked(id));
-        if (state.section === 'saved') renderFeed();
-    }
+A new generation of self-hosters is proving the point. Their tools have grown up: single-board machines that sip power, reverse proxies that configure themselves, and peer-to-peer protocols that treat the network's edges as first-class citizens rather than mere consumers of whatever the center broadcasts.
 
-    function paintBookmarkBtn(btn, saved) {
-        btn.classList.toggle('saved', saved);
-        btn.setAttribute('aria-label', saved ? 'Remove from saved stories' : 'Save story');
-        btn.setAttribute('aria-pressed', String(saved));
-        const icon = btn.querySelector('i');
-        icon.classList.toggle('fa-solid', saved);
-        icon.classList.toggle('fa-regular', !saved);
-    }
+What emerges is not a wholesale replacement of the cloud but a rebalancing. Family photo archives that never leave the house. Community forums that answer to their communities. Small services, run by the people who use them, stitched together into something that looks a great deal like the web we were promised in the first place.
 
-    // Build the save (and, for the reader's own stories, delete) buttons for a card.
-    function buildActions(id, mine) {
-        const wrap = document.createElement('div');
-        wrap.classList.add('card-actions');
+The monoliths will not disappear. But their monopoly on convenience is ending, one homelab at a time.`,
+        },
+        {
+            id: 'architecting-sustainable-urban-sanctuaries',
+            title: 'Architecting Sustainable Urban Sanctuaries',
+            category: 'Environment',
+            description: 'Bridging the gap between brutalist structural design and native ecological systems within dense metropolis centers.',
+            author: 'Marcus Vance',
+            readTime: 8,
+            date: Date.parse('2026-06-27T11:00:00Z'),
+            image: 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?auto=format&fit=crop&w=600&q=80',
+            content: `Concrete and canopy are not natural enemies. That is the thesis a new school of architects is testing in the densest districts of the world's fastest-growing cities, where raw structural honesty meets deliberate, native wilderness.
 
-        const bookmarkBtn = document.createElement('button');
-        bookmarkBtn.type = 'button';
-        bookmarkBtn.classList.add('card-action-btn', 'bookmark-btn');
-        bookmarkBtn.innerHTML = '<i class="fa-regular fa-bookmark"></i>';
-        paintBookmarkBtn(bookmarkBtn, isBookmarked(id));
-        wrap.appendChild(bookmarkBtn);
+The approach begins with what brutalism always did well: mass, shade, and thermal patience. Thick walls that hold the night's cool through the afternoon. Deep overhangs that turn harsh sun into soft light. Then comes the newer move — treating planting not as landscaping but as infrastructure. Species are chosen the way beams are specified: for load, for lifespan, for what they give back to the system around them.
 
-        if (mine) {
-            const deleteBtn = document.createElement('button');
-            deleteBtn.type = 'button';
-            deleteBtn.classList.add('card-action-btn', 'delete-btn');
-            deleteBtn.setAttribute('aria-label', 'Delete story');
-            deleteBtn.innerHTML = '<i class="fa-regular fa-trash-can"></i>';
-            wrap.appendChild(deleteBtn);
+The results read as sanctuaries because they function as sanctuaries. Courtyards where birdsong competes with traffic and wins. Rooftops that harvest storms instead of shedding them. Facades that age not by staining but by greening.
+
+None of this is nostalgia for a pre-urban world. It is a bet that the city, at its most honest and most alive, is itself a habitat worth designing for every species that has to live in it — including us.`,
+        },
+        {
+            id: 'the-psychology-of-intentional-code',
+            title: 'The Psychology of Intentional Code',
+            category: 'Culture',
+            description: 'Why treating software development as a literary art form leads to cleaner architecture, less technical debt, and more resilient systems.',
+            author: 'K. Soleymani',
+            readTime: 5,
+            date: Date.parse('2026-06-25T16:00:00Z'),
+            image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=600&q=80',
+            content: `Every codebase tells you how it was written. Some read like a first draft dashed off against a deadline — clever in places, contradictory in others, held together by comments that apologize. Others read like they were revised: names chosen and then chosen again, structures that anticipate their reader, nothing present that does not earn its place.
+
+The difference is not talent. It is intention, and intention is a practice borrowed straight from the writer's desk. Good authors revise because the first telling of anything is for the teller; the second is for the audience. Software has audiences too — the teammate reviewing the diff, the maintainer three years out, the author themselves at 2 a.m. during an incident.
+
+Teams that internalize this produce systems with a measurably different shape. Modules stay small because small ideas are easier to state cleanly. Dependencies stay explicit because hidden ones read like plot holes. Technical debt still accumulates — deadlines are real — but it accumulates the way an edited manuscript accumulates margin notes: visibly, deliberately, with a plan for the next pass.
+
+Treat the codebase as literature and the compiler as merely your first, least important reader. The ones who come after care about the prose.`,
+        },
+    ];
+
+    const Articles = (() => {
+        // Track every id in use so user posts never collide with seeds or each other.
+        const usedIds = new Set(SEED_ARTICLES.map((a) => a.id));
+
+        function uniqueId(title) {
+            const base = slugify(title);
+            let id = base;
+            let n = 2;
+            while (usedIds.has(id)) id = `${base}-${n++}`;
+            usedIds.add(id);
+            return id;
         }
-        return wrap;
+
+        // Normalize stored posts (older entries may predate the id field),
+        // then persist the normalized form so ids stay stable forever.
+        const mine = Store.read(KEYS.articles, []).map((a) => ({ ...a, time: a.time || Date.now() }));
+        mine.forEach((a) => {
+            if (!a.id) a.id = uniqueId(a.title);
+            else usedIds.add(a.id);
+        });
+        Store.write(KEYS.articles, mine);
+
+        function decorate(a, isMine) {
+            return {
+                id: a.id,
+                title: a.title,
+                category: a.category,
+                description: isMine ? a.content : a.description,
+                author: a.author,
+                readTime: isMine ? estimateReadTime(a.content) : a.readTime,
+                date: isMine ? a.time : a.date,
+                content: a.content,
+                image: isMine ? pickImage(a.title) : a.image,
+                featured: !isMine && !!a.featured,
+                mine: isMine,
+            };
+        }
+
+        return {
+            all() {
+                return [
+                    ...SEED_ARTICLES.map((a) => decorate(a, false)),
+                    ...mine.map((a) => decorate(a, true)),
+                ];
+            },
+            byId(id) {
+                return this.all().find((a) => a.id === id) || null;
+            },
+            add({ title, author, category, content }) {
+                const post = { id: uniqueId(title), title, author, category, content, time: Date.now() };
+                mine.push(post);
+                Store.write(KEYS.articles, mine);
+                return decorate(post, true);
+            },
+            removeById(id) {
+                const idx = mine.findIndex((a) => a.id === id);
+                if (idx === -1) return;
+                mine.splice(idx, 1);
+                Store.write(KEYS.articles, mine);
+                usedIds.delete(id);
+            },
+        };
+    })();
+
+    /* ================= DOM references ================= */
+
+    const el = {
+        grid: document.getElementById('articlesGrid'),
+        featuredSection: document.getElementById('featuredSection'),
+        emptyState: document.getElementById('emptyState'),
+        feedLabel: document.getElementById('feedLabel'),
+        feedStatus: document.getElementById('feedStatus'),
+        feedStatusText: document.getElementById('feedStatusText'),
+        clearFilter: document.getElementById('clearFilter'),
+        searchInput: document.getElementById('searchInput'),
+        navLinks: document.querySelectorAll('.nav-links a[data-view]'),
+        themeToggle: document.getElementById('themeToggle'),
+        progressBar: document.getElementById('readingProgress'),
+        writeModal: document.getElementById('writeModal'),
+        readerModal: document.getElementById('readerModal'),
+        openModalBtn: document.getElementById('openModalBtn'),
+        closeModalBtn: document.getElementById('closeModalBtn'),
+        saveDraftBtn: document.getElementById('cancelModalBtn'),
+        readerCloseBtn: document.getElementById('readerCloseBtn'),
+        readerShareBtn: document.getElementById('readerShareBtn'),
+        articleForm: document.getElementById('articleForm'),
+        postContent: document.getElementById('postContent'),
+        wordCount: document.getElementById('wordCount'),
+    };
+
+    /* ================= State ================= */
+
+    const state = { section: 'home', category: null, query: '' };
+    const viewCounts = Store.read(KEYS.views, {});
+    let bookmarks = Store.read(KEYS.bookmarks, []);
+    let justPublishedId = null;
+    let lastFocusedElement = null;
+
+    /* ================= Theme ================= */
+
+    const Theme = {
+        apply(mode) {
+            const dark = mode === 'dark';
+            document.body.classList.toggle('dark-mode', dark);
+            el.themeToggle.setAttribute('aria-pressed', String(dark));
+            el.themeToggle.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+            const icon = el.themeToggle.querySelector('i');
+            icon.classList.toggle('fa-sun', dark);
+            icon.classList.toggle('fa-moon', !dark);
+        },
+        toggle() {
+            const next = document.body.classList.contains('dark-mode') ? 'light' : 'dark';
+            Store.write(KEYS.theme, next);
+            this.apply(next);
+        },
+        init() {
+            this.apply(Store.read(KEYS.theme, 'light'));
+        },
+    };
+
+    /* ================= Bookmarks ================= */
+
+    const Bookmarks = {
+        has: (id) => bookmarks.includes(id),
+        toggle(id) {
+            bookmarks = this.has(id) ? bookmarks.filter((b) => b !== id) : [...bookmarks, id];
+            Store.write(KEYS.bookmarks, bookmarks);
+        },
+        removeFor(id) {
+            if (!this.has(id)) return;
+            bookmarks = bookmarks.filter((b) => b !== id);
+            Store.write(KEYS.bookmarks, bookmarks);
+        },
+    };
+
+    /* ================= Feed (render pipeline) ================= */
+
+    function actionButtonsHTML(article) {
+        const saved = Bookmarks.has(article.id);
+        const bookmark = `
+            <button type="button" class="card-action-btn bookmark-btn${saved ? ' saved' : ''}"
+                    aria-pressed="${saved}" aria-label="${saved ? 'Remove from saved stories' : 'Save story'}">
+                <i class="fa-${saved ? 'solid' : 'regular'} fa-bookmark"></i>
+            </button>`;
+        const del = article.mine ? `
+            <button type="button" class="card-action-btn delete-btn" aria-label="Delete story">
+                <i class="fa-regular fa-trash-can"></i>
+            </button>` : '';
+        return `<div class="card-actions">${bookmark}${del}</div>`;
     }
 
-    /* --- Card Construction & Indexing --- */
-
-    function tagCard(el, { id, title, author, category, content, time, order }) {
-        el.dataset.id = id;
-        el.dataset.title = title;
-        el.dataset.author = author;
-        el.dataset.category = category;
-        el.dataset.content = content;
-        el.dataset.time = String(time);
-        el.dataset.order = String(order);
-    }
-
-    function buildCard(article, order) {
-        const readTime = estimateReadTime(article.content);
-        const cardElement = document.createElement('article');
-        cardElement.classList.add('article-card', 'article-card--new');
-
-        // Every interpolated value is escaped, so markup in user input is inert.
-        cardElement.innerHTML = `
+    function cardHTML(article) {
+        return `
             <div class="card-img-wrapper">
-                <div class="card-img" style="background-image: url('${pickImage(article.title)}');"></div>
+                <div class="card-img" style="background-image: url('${article.image}');"></div>
+                ${actionButtonsHTML(article)}
             </div>
             <div class="card-body">
-                <span class="category-tag">${escapeHTML(article.category)}</span>
-                <h3 class="card-title"><a href="#">${escapeHTML(article.title)}</a></h3>
-                <p class="card-excerpt">${escapeHTML(article.content)}</p>
+                <span class="category-tag">${esc(article.category)}</span>
+                <h3 class="card-title"><a href="#">${esc(article.title)}</a></h3>
+                <p class="card-excerpt">${esc(article.description)}</p>
                 <div class="author-meta">
-                    <span class="author-name">${escapeHTML(article.author)}</span>
-                    <span class="read-time">&bull; ${readTime} min read</span>
+                    <span class="author-name">${esc(article.author)}</span>
+                    <span class="read-time">&bull; ${article.readTime} min read</span>
                 </div>
-            </div>
-        `;
-        tagCard(cardElement, { ...article, order });
-        cardElement.dataset.mine = 'true';
-        cardElement.querySelector('.card-img-wrapper').appendChild(buildActions(article.id, true));
-        return cardElement;
+            </div>`;
     }
 
-    // Read metadata straight out of a static card already present in the HTML.
-    function indexExistingCard(el, order, time) {
-        const pick = (sel) => (el.querySelector(sel)?.textContent || '').trim();
-        const title = pick('.card-title, .featured-title');
-        const id = uniqueId(title);
-        tagCard(el, {
-            id,
-            title,
-            author: pick('.author-name').replace(/^By\s+/i, ''),
-            category: pick('.category-tag'),
-            content: pick('.card-excerpt, .featured-excerpt'),
-            time,
-            order,
-        });
-        el.querySelector('.card-img-wrapper, .featured-img-wrapper').appendChild(buildActions(id, false));
+    function buildCard(article) {
+        const card = document.createElement('article');
+        card.className = 'article-card';
+        if (article.id === justPublishedId) card.classList.add('article-card--new');
+        card.dataset.id = article.id;
+        card.dataset.title = article.title;
+        card.innerHTML = cardHTML(article);
+        return card;
     }
 
-    /* --- Restore Published Articles --- */
-    readJSON(STORAGE_KEY, [])
-        .slice()
-        .sort((a, b) => (a.time || 0) - (b.time || 0))
-        .forEach((article) => {
-            const time = article.time || Date.now();
-            const card = buildCard({ ...article, id: uniqueId(article.title) }, -time);
-            card.dataset.time = String(time);
-            card.classList.remove('article-card--new');
-            articlesGrid.insertBefore(card, articlesGrid.firstChild);
-        });
-
-    /* --- Index Seed Cards (featured + original grid) --- */
-    if (featuredCard) {
-        indexExistingCard(featuredCard, 0, SEED_BASE_TIME);
-        featuredCard.dataset.featured = 'true';
+    function renderFeatured(article) {
+        el.featuredSection.innerHTML = `
+            <a href="#" class="featured-card-link">
+                <div class="featured-card" data-id="${esc(article.id)}" data-title="${esc(article.title)}">
+                    <div class="featured-img-wrapper">
+                        <div class="featured-img" style="background-image: url('${article.image}');"></div>
+                        ${actionButtonsHTML(article)}
+                    </div>
+                    <div class="featured-content">
+                        <span class="category-tag">${esc(article.category)}</span>
+                        <h1 class="featured-title">${esc(article.title)}</h1>
+                        <p class="featured-excerpt">${esc(article.description)}</p>
+                        <div class="author-meta">
+                            <span class="author-name">By ${esc(article.author)}</span>
+                            <span class="read-time">&bull; ${article.readTime} min read</span>
+                        </div>
+                    </div>
+                </div>
+            </a>`;
     }
-    Array.from(articlesGrid.querySelectorAll('.article-card'))
-        .filter((el) => !el.dataset.id)
-        .forEach((el, i) => indexExistingCard(el, 1000 + i, SEED_BASE_TIME - (i + 1) * 3600000));
-
-    /* --- Feed Rendering (sort + filter) --- */
 
     function getViews(id) {
         return viewCounts[id] || 0;
     }
 
-    function matchesFilters(dataset) {
-        if (state.section === 'saved' && !isBookmarked(dataset.id)) return false;
-        if (state.category && (dataset.category || '').toLowerCase() !== state.category.toLowerCase()) {
-            return false;
-        }
+    function matchesFilters(article) {
+        if (state.section === 'saved' && !Bookmarks.has(article.id)) return false;
+        if (state.category && article.category.toLowerCase() !== state.category.toLowerCase()) return false;
         if (state.query) {
-            const haystack = `${dataset.title} ${dataset.author} ${dataset.category} ${dataset.content}`.toLowerCase();
+            const haystack = `${article.title} ${article.author} ${article.category} ${article.description} ${article.content}`.toLowerCase();
             if (!haystack.includes(state.query)) return false;
         }
         return true;
     }
 
+    const SORTERS = {
+        // Home keeps curation order: newest of the reader's own posts first, then seeds.
+        home: (a, b) => (b.mine - a.mine) || (a.mine ? b.date - a.date : 0),
+        latest: (a, b) => b.date - a.date,
+        saved: (a, b) => b.date - a.date,
+        trending: (a, b) => (getViews(b.id) - getViews(a.id)) || (b.date - a.date),
+    };
+
     function renderFeed() {
-        const cards = Array.from(articlesGrid.querySelectorAll('.article-card'));
+        const all = Articles.all();
+        const featured = all.find((a) => a.featured);
 
-        // Order the cards according to the active section.
-        let ordered;
-        if (state.section === 'latest' || state.section === 'saved') {
-            ordered = cards.slice().sort((a, b) => Number(b.dataset.time) - Number(a.dataset.time));
-        } else if (state.section === 'trending') {
-            ordered = cards.slice().sort((a, b) => {
-                const diff = getViews(b.dataset.id) - getViews(a.dataset.id);
-                return diff !== 0 ? diff : Number(b.dataset.time) - Number(a.dataset.time);
-            });
+        // The hero renders separately on Home; elsewhere it joins the grid.
+        const showFeatured = state.section === 'home' && featured && matchesFilters(featured);
+        if (showFeatured) {
+            renderFeatured(featured);
+            el.featuredSection.style.display = '';
         } else {
-            ordered = cards.slice().sort((a, b) => Number(a.dataset.order) - Number(b.dataset.order));
-        }
-        ordered.forEach((card) => articlesGrid.appendChild(card));
-
-        // Apply section/category/search filters by toggling visibility.
-        let visibleCount = 0;
-        cards.forEach((card) => {
-            const show = matchesFilters(card.dataset);
-            card.style.display = show ? '' : 'none';
-            if (show) visibleCount += 1;
-        });
-
-        // The featured hero shows only on Home, and only if it passes the active filters.
-        if (featuredSection && featuredCard) {
-            const showFeatured = state.section === 'home' && matchesFilters(featuredCard.dataset);
-            featuredSection.style.display = showFeatured ? '' : 'none';
-            if (showFeatured) visibleCount += 1;
+            el.featuredSection.style.display = 'none';
         }
 
-        emptyState.textContent = state.section === 'saved' && !state.query && !state.category
+        const pool = state.section === 'home' ? all.filter((a) => !a.featured) : all;
+        const list = pool.filter(matchesFilters).sort(SORTERS[state.section] || SORTERS.home);
+
+        el.grid.replaceChildren(...list.map(buildCard));
+        justPublishedId = null;
+
+        const visibleCount = list.length + (showFeatured ? 1 : 0);
+        el.emptyState.textContent = state.section === 'saved' && !state.query && !state.category
             ? 'No saved stories yet. Tap the bookmark on any story to keep it here.'
             : 'No stories match your search.';
-        emptyState.hidden = visibleCount > 0;
+        el.emptyState.hidden = visibleCount > 0;
+
         updateFeedChrome();
     }
 
-    // Update the section label, active-filter status bar, and URL hash.
     function updateFeedChrome() {
         const labels = { home: 'The Feed', latest: 'Latest', trending: 'Trending', saved: 'Saved Stories' };
-        feedLabel.textContent = labels[state.section] || 'The Feed';
+        el.feedLabel.textContent = labels[state.section] || 'The Feed';
 
         const parts = [];
-        if (state.category) parts.push(`topic <strong>${escapeHTML(state.category)}</strong>`);
-        if (state.query) parts.push(`&ldquo;<strong>${escapeHTML(state.query)}</strong>&rdquo;`);
+        if (state.category) parts.push(`topic <strong>${esc(state.category)}</strong>`);
+        if (state.query) parts.push(`&ldquo;<strong>${esc(state.query)}</strong>&rdquo;`);
 
         if (parts.length) {
-            feedStatusText.innerHTML = `Showing stories in ${parts.join(' matching ')}`;
-            feedStatus.hidden = false;
+            el.feedStatusText.innerHTML = `Showing stories in ${parts.join(' matching ')}`;
+            el.feedStatus.hidden = false;
         } else {
-            feedStatus.hidden = true;
+            el.feedStatus.hidden = true;
         }
 
-        navLinks.forEach((link) => {
+        el.navLinks.forEach((link) => {
             link.classList.toggle('active', link.dataset.view === state.section);
         });
 
@@ -319,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) { /* history API may be restricted; non-essential */ }
     }
 
-    /* --- Overlay (modal) Management --- */
+    /* ================= Overlays (shared dialog plumbing) ================= */
 
     function openOverlay(overlay, focusEl) {
         lastFocusedElement = document.activeElement;
@@ -332,7 +452,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function closeOverlay(overlay) {
         overlay.classList.remove('active');
         overlay.setAttribute('aria-hidden', 'true');
-        // Only release the scroll lock if no other overlay is still open.
         if (!document.querySelector('.modal-overlay.active')) {
             document.body.style.overflow = '';
         }
@@ -341,121 +460,129 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Backdrop click closes whichever overlay was clicked.
-    [writeModal, readerModal].forEach((overlay) => {
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) closeOverlay(overlay);
-        });
-    });
+    /* ================= Reader ================= */
 
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            const openOne = document.querySelector('.modal-overlay.active');
-            if (openOne) closeOverlay(openOne);
-            return;
-        }
-        // "/" jumps to search, unless the user is already typing somewhere.
-        if (e.key === '/' && !e.target.closest('input, textarea')) {
-            e.preventDefault();
-            searchInput.focus();
-        }
-    });
+    const Reader = {
+        currentId: null,
 
-    /* --- Reader --- */
+        open(article) {
+            this.currentId = article.id;
+            document.getElementById('readerCategory').textContent = article.category;
+            document.getElementById('readerTitle').textContent = article.title;
+            document.getElementById('readerAuthor').textContent = article.author;
+            document.getElementById('readerReadTime').innerHTML = `&bull; ${article.readTime} min read`;
+            document.getElementById('readerDate').innerHTML = `&bull; ${formatDate(article.date)}`;
+            document.getElementById('readerBody').textContent = article.content;
+            this.resetShareBtn();
 
-    let currentStoryId = null;
+            // Count the read so it can influence the Trending view.
+            viewCounts[article.id] = getViews(article.id) + 1;
+            Store.write(KEYS.views, viewCounts);
+            if (state.section === 'trending') renderFeed();
 
-    function openReader(card) {
-        const d = card.dataset;
-        currentStoryId = d.id;
-        document.getElementById('readerCategory').textContent = d.category;
-        document.getElementById('readerTitle').textContent = d.title;
-        document.getElementById('readerAuthor').textContent = d.author;
-        document.getElementById('readerReadTime').innerHTML = `&bull; ${estimateReadTime(d.content)} min read`;
-        document.getElementById('readerBody').textContent = d.content;
-        resetShareBtn();
+            const box = el.readerModal.querySelector('.reader-box');
+            if (box) box.scrollTop = 0;
+            openOverlay(el.readerModal, el.readerCloseBtn);
+        },
 
-        // Count the read so it can influence the Trending view.
-        viewCounts[d.id] = getViews(d.id) + 1;
-        writeJSON(VIEWS_KEY, viewCounts);
-        if (state.section === 'trending') renderFeed();
+        resetShareBtn() {
+            el.readerShareBtn.classList.remove('copied');
+            el.readerShareBtn.querySelector('span').textContent = 'Share';
+        },
 
-        const box = readerModal.querySelector('.reader-box');
-        if (box) box.scrollTop = 0;
-        openOverlay(readerModal, readerCloseBtn);
-    }
+        async share() {
+            if (!this.currentId) return;
+            const url = `${location.origin}${location.pathname}${location.search}#story=${this.currentId}`;
+            try {
+                await navigator.clipboard.writeText(url);
+            } catch (err) {
+                // Clipboard API can be unavailable (permissions, file://); fall back.
+                const ta = document.createElement('textarea');
+                ta.value = url;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); } catch (err2) { /* give up quietly */ }
+                ta.remove();
+            }
+            el.readerShareBtn.classList.add('copied');
+            el.readerShareBtn.querySelector('span').textContent = 'Link copied';
+            setTimeout(() => this.resetShareBtn(), 2000);
+        },
+    };
 
-    readerCloseBtn.addEventListener('click', () => closeOverlay(readerModal));
+    /* ================= Composer ================= */
 
-    /* --- Share (deep link) --- */
+    const DRAFT_FIELDS = ['postTitle', 'postAuthor', 'postCategory', 'postContent'];
 
-    function resetShareBtn() {
-        readerShareBtn.classList.remove('copied');
-        readerShareBtn.querySelector('span').textContent = 'Share';
-    }
+    const Composer = {
+        updateWordCount() {
+            const words = countWords(el.postContent.value);
+            el.wordCount.innerHTML =
+                `${words} word${words === 1 ? '' : 's'} &bull; ~${estimateReadTime(el.postContent.value)} min read`;
+        },
 
-    async function copyText(text) {
-        try {
-            await navigator.clipboard.writeText(text);
-        } catch (err) {
-            // Clipboard API can be unavailable (permissions, file://); fall back.
-            const ta = document.createElement('textarea');
-            ta.value = text;
-            ta.setAttribute('readonly', '');
-            ta.style.position = 'fixed';
-            ta.style.opacity = '0';
-            document.body.appendChild(ta);
-            ta.select();
-            try { document.execCommand('copy'); } catch (err2) { /* give up quietly */ }
-            ta.remove();
-        }
-    }
+        saveDraft() {
+            const draft = {};
+            DRAFT_FIELDS.forEach((id) => { draft[id] = document.getElementById(id).value; });
+            Store.write(KEYS.draft, draft);
+        },
 
-    readerShareBtn.addEventListener('click', async () => {
-        if (!currentStoryId) return;
-        const url = `${location.origin}${location.pathname}${location.search}#story=${currentStoryId}`;
-        await copyText(url);
-        readerShareBtn.classList.add('copied');
-        readerShareBtn.querySelector('span').textContent = 'Link copied';
-        setTimeout(resetShareBtn, 2000);
-    });
+        restoreDraft() {
+            const draft = Store.read(KEYS.draft, null);
+            if (!draft) return;
+            DRAFT_FIELDS.forEach((id) => {
+                if (draft[id]) document.getElementById(id).value = draft[id];
+            });
+        },
 
-    /* --- Delegated Clicks: actions, category filter, open reader --- */
-    document.addEventListener('click', (e) => {
-        // Card quick-actions take priority and never open the reader.
-        const bookmarkBtn = e.target.closest('.bookmark-btn');
-        if (bookmarkBtn) {
-            e.preventDefault();
-            const card = bookmarkBtn.closest('.article-card, .featured-card');
-            toggleBookmark(card.dataset.id, bookmarkBtn);
-            return;
-        }
+        publish() {
+            const fields = {
+                title: document.getElementById('postTitle').value.trim(),
+                author: document.getElementById('postAuthor').value.trim(),
+                category: document.getElementById('postCategory').value.trim(),
+                content: document.getElementById('postContent').value.trim(),
+            };
+            // Guard against whitespace-only submissions that slip past `required`.
+            if (!fields.title || !fields.author || !fields.category || !fields.content) return;
 
-        const deleteBtn = e.target.closest('.delete-btn');
-        if (deleteBtn) {
-            e.preventDefault();
-            handleDelete(deleteBtn);
-            return;
-        }
+            const article = Articles.add(fields);
+            justPublishedId = article.id;
 
-        // Ignore clicks that happen inside an overlay dialog.
-        if (e.target.closest('.modal-box')) return;
+            el.articleForm.reset();
+            Store.remove(KEYS.draft);
+            this.updateWordCount();
+            closeOverlay(el.writeModal);
 
-        const tag = e.target.closest('.category-tag');
-        if (tag) {
-            e.preventDefault();
-            filterByCategory(tag.textContent.trim());
-            return;
-        }
+            // Return to Home so the author sees their new piece at the top.
+            Object.assign(state, { section: 'home', category: null, query: '' });
+            el.searchInput.value = '';
+            renderFeed();
+        },
+    };
 
-        const card = e.target.closest('.article-card, .featured-card');
-        if (card && card.dataset.id) {
-            e.preventDefault();
-            openReader(card);
-        }
-    });
+    /* ================= Progress bar ================= */
 
-    /* --- Delete Own Stories (two-step confirm) --- */
+    const Progress = {
+        ticking: false,
+        update() {
+            const totalScrollable = document.documentElement.scrollHeight - window.innerHeight;
+            const pct = totalScrollable > 0 ? (window.scrollY / totalScrollable) * 100 : 0;
+            el.progressBar.style.width = `${pct}%`;
+            el.progressBar.setAttribute('aria-valuenow', Math.round(pct));
+            this.ticking = false;
+        },
+        onScroll() {
+            if (!this.ticking) {
+                this.ticking = true;
+                window.requestAnimationFrame(() => this.update());
+            }
+        },
+    };
+
+    /* ================= Delete (two-step confirm) ================= */
 
     function handleDelete(btn) {
         if (!btn.classList.contains('armed')) {
@@ -467,32 +594,76 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 2500);
             return;
         }
-
-        const card = btn.closest('.article-card');
-        const { id, time } = card.dataset;
-
-        const remaining = readJSON(STORAGE_KEY, []).filter((a) => String(a.time) !== time);
-        writeJSON(STORAGE_KEY, remaining);
-
-        if (isBookmarked(id)) {
-            bookmarks = bookmarks.filter((b) => b !== id);
-            writeJSON(BOOKMARKS_KEY, bookmarks);
-        }
+        const id = btn.closest('[data-id]').dataset.id;
+        Articles.removeById(id);
+        Bookmarks.removeFor(id);
         delete viewCounts[id];
-        writeJSON(VIEWS_KEY, viewCounts);
-
-        card.remove();
+        Store.write(KEYS.views, viewCounts);
         renderFeed();
     }
 
-    function filterByCategory(category) {
-        state.category = category;
-        renderFeed();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    /* ================= Router ================= */
 
-    /* --- Navigation Views --- */
-    navLinks.forEach((link) => {
+    const Router = {
+        apply() {
+            const hash = decodeURIComponent(location.hash.replace(/^#/, ''));
+            if (hash.startsWith('story=')) {
+                const article = Articles.byId(hash.slice(6));
+                if (article) Reader.open(article);
+                return;
+            }
+            if (['home', 'latest', 'trending', 'saved'].includes(hash)) {
+                state.section = hash;
+            }
+        },
+    };
+
+    /* ================= Event wiring ================= */
+
+    // Current date in the masthead.
+    document.getElementById('currentDate').textContent = new Date().toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    });
+
+    // Delegated clicks: card actions, category kickers, opening the reader.
+    document.addEventListener('click', (e) => {
+        const bookmarkBtn = e.target.closest('.bookmark-btn');
+        if (bookmarkBtn) {
+            e.preventDefault();
+            Bookmarks.toggle(bookmarkBtn.closest('[data-id]').dataset.id);
+            renderFeed();
+            return;
+        }
+
+        const deleteBtn = e.target.closest('.delete-btn');
+        if (deleteBtn) {
+            e.preventDefault();
+            handleDelete(deleteBtn);
+            return;
+        }
+
+        // Ignore clicks inside an open dialog (reader chips, form, etc.).
+        if (e.target.closest('.modal-box')) return;
+
+        const tag = e.target.closest('.category-tag');
+        if (tag) {
+            e.preventDefault();
+            state.category = tag.textContent.trim();
+            renderFeed();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        }
+
+        const card = e.target.closest('[data-id]');
+        if (card) {
+            e.preventDefault();
+            const article = Articles.byId(card.dataset.id);
+            if (article) Reader.open(article);
+        }
+    });
+
+    // Nav views.
+    el.navLinks.forEach((link) => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             state.section = link.dataset.view;
@@ -501,128 +672,65 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    /* --- Search --- */
-    searchInput.addEventListener('input', () => {
-        state.query = searchInput.value.trim().toLowerCase();
+    // Search.
+    el.searchInput.addEventListener('input', () => {
+        state.query = el.searchInput.value.trim().toLowerCase();
         renderFeed();
     });
 
-    /* --- Clear Filters --- */
-    clearFilterBtn.addEventListener('click', () => {
-        state.category = null;
-        state.query = '';
-        searchInput.value = '';
+    el.clearFilter.addEventListener('click', () => {
+        Object.assign(state, { category: null, query: '' });
+        el.searchInput.value = '';
         renderFeed();
     });
 
-    /* --- Write Modal + Draft Persistence --- */
-    const draftFields = ['postTitle', 'postAuthor', 'postCategory', 'postContent'];
+    // Theme.
+    el.themeToggle.addEventListener('click', () => Theme.toggle());
 
-    function saveDraft() {
-        const draft = {};
-        draftFields.forEach((id) => { draft[id] = document.getElementById(id).value; });
-        writeJSON(DRAFT_KEY, draft);
-    }
+    // Overlays.
+    el.openModalBtn.addEventListener('click', () => openOverlay(el.writeModal, document.getElementById('postTitle')));
+    el.closeModalBtn.addEventListener('click', () => closeOverlay(el.writeModal));
+    el.readerCloseBtn.addEventListener('click', () => closeOverlay(el.readerModal));
+    el.readerShareBtn.addEventListener('click', () => Reader.share());
+    el.saveDraftBtn.addEventListener('click', () => {
+        Composer.saveDraft();
+        closeOverlay(el.writeModal);
+    });
 
-    function restoreDraft() {
-        const draft = readJSON(DRAFT_KEY, null);
-        if (!draft) return;
-        draftFields.forEach((id) => {
-            if (draft[id]) document.getElementById(id).value = draft[id];
+    [el.writeModal, el.readerModal].forEach((overlay) => {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeOverlay(overlay);
         });
-    }
-
-    function clearDraft() {
-        try { localStorage.removeItem(DRAFT_KEY); } catch (err) { /* ignore */ }
-    }
-
-    restoreDraft();
-
-    /* --- Composer Word Count --- */
-    function updateWordCount() {
-        const words = countWords(postContent.value);
-        wordCountEl.innerHTML = `${words} word${words === 1 ? '' : 's'} &bull; ~${estimateReadTime(postContent.value)} min read`;
-    }
-    postContent.addEventListener('input', updateWordCount);
-    updateWordCount(); // reflect any restored draft
-
-    openModalBtn.addEventListener('click', () => openOverlay(writeModal, document.getElementById('postTitle')));
-    closeModalBtn.addEventListener('click', () => closeOverlay(writeModal));
-    saveDraftBtn.addEventListener('click', () => {
-        saveDraft();
-        closeOverlay(writeModal);
     });
 
-    /* --- Reading Progress Tracker (throttled via rAF) --- */
-    let progressTicking = false;
-    function updateProgress() {
-        const totalScrollable = document.documentElement.scrollHeight - window.innerHeight;
-        const pct = totalScrollable > 0 ? (window.scrollY / totalScrollable) * 100 : 0;
-        progressBar.style.width = `${pct}%`;
-        progressBar.setAttribute('aria-valuenow', Math.round(pct));
-        progressTicking = false;
-    }
-    window.addEventListener('scroll', () => {
-        if (!progressTicking) {
-            progressTicking = true;
-            window.requestAnimationFrame(updateProgress);
-        }
-    });
-
-    /* --- Publish --- */
-    articleForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-
-        const draft = {
-            title: document.getElementById('postTitle').value.trim(),
-            author: document.getElementById('postAuthor').value.trim(),
-            category: document.getElementById('postCategory').value.trim(),
-            content: document.getElementById('postContent').value.trim(),
-        };
-
-        // Guard against whitespace-only submissions that slip past `required`.
-        if (!draft.title || !draft.author || !draft.category || !draft.content) return;
-
-        const time = Date.now();
-        const card = buildCard({ ...draft, id: uniqueId(draft.title), time }, -time);
-        card.dataset.time = String(time);
-        articlesGrid.insertBefore(card, articlesGrid.firstChild);
-
-        const persisted = readJSON(STORAGE_KEY, []);
-        persisted.push({ ...draft, time });
-        writeJSON(STORAGE_KEY, persisted);
-
-        articleForm.reset();
-        clearDraft();
-        updateWordCount();
-        closeOverlay(writeModal);
-
-        // Return to Home so the author sees their new piece at the top.
-        state.section = 'home';
-        state.category = null;
-        state.query = '';
-        searchInput.value = '';
-        renderFeed();
-    });
-
-    /* --- Deep Links & Initial Paint --- */
-
-    function findCardById(id) {
-        return document.querySelector(`.article-card[data-id="${CSS.escape(id)}"], .featured-card[data-id="${CSS.escape(id)}"]`);
-    }
-
-    function applyHash() {
-        const hash = decodeURIComponent(location.hash.replace(/^#/, ''));
-        if (hash.startsWith('story=')) {
-            const card = findCardById(hash.slice(6));
-            if (card) openReader(card);
+    // Keyboard: Escape closes dialogs, "/" jumps to search.
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const open = document.querySelector('.modal-overlay.active');
+            if (open) closeOverlay(open);
             return;
         }
-        if (['home', 'latest', 'trending', 'saved'].includes(hash)) {
-            state.section = hash;
+        if (e.key === '/' && !e.target.closest('input, textarea')) {
+            e.preventDefault();
+            el.searchInput.focus();
         }
-    }
+    });
 
-    applyHash();
+    // Composer.
+    el.postContent.addEventListener('input', () => Composer.updateWordCount());
+    el.articleForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        Composer.publish();
+    });
+
+    // Progress bar.
+    window.addEventListener('scroll', () => Progress.onScroll());
+
+    /* ================= Init ================= */
+
+    Theme.init();
+    Composer.restoreDraft();
+    Composer.updateWordCount();
+    Router.apply();
     renderFeed();
 });
