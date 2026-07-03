@@ -23,6 +23,7 @@
                 <a href="#" class="active" data-view="home">Home</a>
                 <a href="#" data-view="latest">Latest</a>
                 <a href="#" data-view="trending">Trending</a>
+                <a href="#" data-view="saved">Saved</a>
                 <div class="nav-search">
                     <i class="fa-solid fa-magnifying-glass"></i>
                     <input type="search" id="searchInput" placeholder="Search stories&hellip;" aria-label="Search stories" autocomplete="off">
@@ -149,6 +150,9 @@
                 <div class="author-meta reader-meta">
                     <span class="author-name" id="readerAuthor"></span>
                     <span class="read-time" id="readerReadTime"></span>
+                    <button type="button" class="btn btn-secondary reader-share" id="readerShareBtn">
+                        <i class="fa-solid fa-link"></i> <span>Share</span>
+                    </button>
                 </div>
                 <div class="reader-body" id="readerBody"></div>
             </article>
@@ -180,6 +184,7 @@
                 <div class="form-group">
                     <label for="postContent">Body</label>
                     <textarea id="postContent" rows="8" placeholder="Begin writing..." required></textarea>
+                    <div class="word-count" id="wordCount" aria-live="polite">0 words &bull; ~1 min read</div>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" id="cancelModalBtn">Save Draft</button>
