@@ -1,10 +1,4 @@
 /* --- Custom Variable Setup & Font Configuration --- */
-@font-face {
-    font-family: 'Anthropic Serif';
-    font-weight: normal;
-    font-style: normal;
-}
-
 :root {
     --bg-main: #fbf2e6;
     --color-accent: #84263f;
@@ -289,6 +283,22 @@ body {
     flex-direction: column;
 }
 
+/* Newly published cards ease into the feed. */
+.article-card--new {
+    animation: card-enter 0.5s var(--transition-smooth) both;
+}
+
+@keyframes card-enter {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .card-img-wrapper {
     overflow: hidden;
     border-radius: 4px;
@@ -541,5 +551,17 @@ body {
         flex-direction: column;
         gap: 16px;
         text-align: center;
+    }
+}
+
+/* --- Respect Reduced-Motion Preferences --- */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
 }
