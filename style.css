@@ -97,10 +97,10 @@ body {
 .nav-links a {
     text-decoration: none;
     color: var(--text-secondary);
-    font-family: var(--font-sans);
-    font-size: 0.9rem;
+    font-family: var(--font-serif);
+    font-size: 1.05rem;
     font-weight: 500;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.1px;
     transition: color 0.25s var(--transition-smooth);
 }
 
@@ -558,32 +558,47 @@ body {
 .nav-search {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 7px 14px;
-    border: 1px solid var(--border-light);
-    border-radius: 20px;
-    background-color: rgba(251, 242, 230, 0.4);
-    transition: border-color 0.25s var(--transition-smooth);
+    gap: 9px;
+    padding: 8px 16px;
+    border: 1px solid rgba(132, 38, 63, 0.22);
+    border-radius: 22px;
+    background-color: rgba(255, 255, 255, 0.55);
+    transition: border-color 0.25s var(--transition-smooth), box-shadow 0.25s var(--transition-smooth);
 }
 
 .nav-search:focus-within {
     border-color: var(--color-accent);
     background-color: #ffffff;
+    box-shadow: 0 2px 12px rgba(132, 38, 63, 0.09);
 }
 
 .nav-search i {
-    color: var(--text-secondary);
-    font-size: 0.82rem;
+    color: var(--color-accent);
+    font-size: 0.8rem;
+    opacity: 0.85;
 }
 
+/* Reset the native search-field chrome so only the pill above is visible. */
 .nav-search input {
+    -webkit-appearance: none;
+    appearance: none;
     border: none;
     outline: none;
     background: transparent;
     font-family: var(--font-sans);
     font-size: 0.85rem;
     color: var(--text-primary);
-    width: 150px;
+    width: 160px;
+    padding: 0;
+    margin: 0;
+}
+
+.nav-search input::-webkit-search-decoration,
+.nav-search input::-webkit-search-cancel-button,
+.nav-search input::-webkit-search-results-button,
+.nav-search input::-webkit-search-results-decoration {
+    -webkit-appearance: none;
+    appearance: none;
 }
 
 .nav-search input::placeholder {
