@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Chronicle — a curated canvas for architectural code, intentional design, and deep human thought.">
     <title>Chronicle &bull; Perspective in Writing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -26,13 +29,14 @@
                 <a href="#" data-view="saved">Saved</a>
                 <div class="nav-search">
                     <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="search" id="searchInput" placeholder="Search stories&hellip;" aria-label="Search stories" autocomplete="off">
+                    <input type="search" id="searchInput" placeholder="Search stories&hellip;" aria-label="Search stories" autocomplete="off" data-i18n-ph="search">
                 </div>
                 <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">
                     <i class="fa-solid fa-moon"></i>
                 </button>
+                <button class="lang-toggle" type="button" aria-label="Switch language">ع</button>
                 <button class="btn btn-primary" id="openModalBtn">
-                    <i class="fa-solid fa-pen-nib"></i> Write
+                    <i class="fa-solid fa-pen-nib"></i> <span data-i18n="write">Write</span>
                 </button>
             </nav>
             <button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobileDrawer">
@@ -52,7 +56,7 @@
         </div>
         <div class="nav-search drawer-search">
             <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="search" id="drawerSearchInput" placeholder="Search stories&hellip;" aria-label="Search stories" autocomplete="off">
+            <input type="search" id="drawerSearchInput" placeholder="Search stories&hellip;" aria-label="Search stories" autocomplete="off" data-i18n-ph="search">
         </div>
         <nav class="drawer-links">
             <a href="#" data-view="home" class="active">Home</a>
@@ -62,11 +66,12 @@
         </nav>
         <div class="drawer-footer">
             <button class="btn btn-primary drawer-write" id="drawerWriteBtn">
-                <i class="fa-solid fa-pen-nib"></i> Write
+                <i class="fa-solid fa-pen-nib"></i> <span data-i18n="write">Write</span>
             </button>
             <button class="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">
                 <i class="fa-solid fa-moon"></i>
             </button>
+            <button class="lang-toggle" type="button" aria-label="Switch language">ع</button>
         </div>
     </aside>
 
@@ -74,7 +79,7 @@
     <div class="masthead">
         <div class="masthead-inner">
             <span class="date-badge" id="currentDate">Friday, July 3, 2026</span>
-            <p class="masthead-motto">A curated canvas for architectural code, intentional design, and deep human thought.</p>
+            <p class="masthead-motto" data-i18n="motto">A curated canvas for architectural code, intentional design, and deep human thought.</p>
         </div>
     </div>
 
@@ -134,32 +139,36 @@
     <div class="modal-overlay" id="writeModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-hidden="true">
         <div class="modal-box">
             <div class="modal-header">
-                <h2 id="modalTitle">Draft an Essay</h2>
+                <h2 id="modalTitle" data-i18n="draftTitle">Draft an Essay</h2>
                 <button class="close-modal-btn" id="closeModalBtn" type="button" aria-label="Close dialog">&times;</button>
             </div>
             <form id="articleForm" class="modal-form">
                 <div class="form-group">
-                    <label for="postTitle">Title</label>
-                    <input type="text" id="postTitle" placeholder="Give your story an evocative title..." required>
+                    <label for="postTitle" data-i18n="labelTitle">Title</label>
+                    <input type="text" id="postTitle" dir="auto" placeholder="Give your story an evocative title..." data-i18n-ph="phTitle" required>
                 </div>
                 <div class="form-group row">
                     <div class="col">
-                        <label for="postAuthor">Author</label>
-                        <input type="text" id="postAuthor" placeholder="Your name" required>
+                        <label for="postAuthor" data-i18n="labelAuthor">Author</label>
+                        <input type="text" id="postAuthor" dir="auto" placeholder="Your name" data-i18n-ph="phAuthor" required>
                     </div>
                     <div class="col">
-                        <label for="postCategory">Topic</label>
-                        <input type="text" id="postCategory" placeholder="e.g., Culture, Tech, Design" required>
+                        <label for="postCategory" data-i18n="labelTopic">Topic</label>
+                        <input type="text" id="postCategory" dir="auto" placeholder="e.g., Culture, Tech, Design" data-i18n-ph="phTopic" required>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="postContent">Body</label>
-                    <textarea id="postContent" rows="8" placeholder="Begin writing..." required></textarea>
+                    <label for="postImage" data-i18n="labelImage">Image URL (optional)</label>
+                    <input type="url" id="postImage" dir="auto" placeholder="https://images.unsplash.com/&hellip;" data-i18n-ph="phImage">
+                </div>
+                <div class="form-group">
+                    <label for="postContent" data-i18n="labelBody">Body</label>
+                    <textarea id="postContent" rows="8" dir="auto" placeholder="Begin writing..." data-i18n-ph="phBody" required></textarea>
                     <div class="word-count" id="wordCount" aria-live="polite">0 words &bull; ~1 min read</div>
                 </div>
                 <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" id="cancelModalBtn">Save Draft</button>
-                    <button type="submit" class="btn btn-primary">Publish Piece</button>
+                    <button type="button" class="btn btn-secondary" id="cancelModalBtn" data-i18n="saveDraft">Save Draft</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="publish">Publish Piece</button>
                 </div>
             </form>
         </div>

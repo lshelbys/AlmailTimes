@@ -10,7 +10,8 @@
     
     --font-serif: 'Anthropic Serif', Georgia, 'Times New Roman', serif;
     --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    
+    --font-arabic: 'Amiri', 'Noto Naskh Arabic', 'Times New Roman', serif;
+
     --transition-smooth: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
@@ -1059,6 +1060,106 @@ body.dark-mode .modal-overlay {
 
 body.dark-mode .modal-box {
     box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
+}
+
+/* --- Language Toggle --- */
+.lang-toggle {
+    min-width: 38px;
+    height: 38px;
+    padding: 0 10px;
+    border-radius: 19px;
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: all 0.25s var(--transition-smooth);
+}
+
+.lang-toggle:hover {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+}
+
+.drawer-footer .lang-toggle {
+    height: 44px;
+    border-radius: 22px;
+}
+
+/* --- Arabic / RTL Mode --- */
+/* Route the serif editorial voice through the Arabic Naskh face. */
+body.lang-ar {
+    --font-serif: var(--font-arabic);
+}
+
+body.lang-ar .featured-title,
+body.lang-ar .card-title,
+body.lang-ar .reader-title,
+body.lang-ar .reader-body,
+body.lang-ar .card-excerpt,
+body.lang-ar .featured-excerpt,
+body.lang-ar .drawer-links a,
+body.lang-ar .nav-links a,
+body.lang-ar .masthead-motto {
+    font-family: var(--font-arabic);
+}
+
+/* Arabic Naskh needs a little more leading to breathe. */
+body.lang-ar .featured-title,
+body.lang-ar .card-title,
+body.lang-ar .reader-title {
+    line-height: 1.4;
+}
+
+body.lang-ar .reader-body {
+    line-height: 2;
+}
+
+/* The mobile drawer slides in from the left in RTL. */
+body.lang-ar .mobile-drawer {
+    right: auto;
+    left: 0;
+    border-left: none;
+    border-right: 1px solid var(--border-light);
+    box-shadow: 20px 0 60px rgba(30, 25, 21, 0.18);
+    transform: translateX(-100%);
+}
+
+body.lang-ar.drawer-open .mobile-drawer {
+    transform: translateX(0);
+}
+
+/* Flip logical edges that were pinned with physical properties. */
+body.lang-ar .reader-share {
+    margin-left: 0;
+    margin-right: auto;
+}
+
+body.lang-ar .divider-label {
+    padding-right: 0;
+    padding-left: 20px;
+}
+
+body.lang-ar .card-actions {
+    right: auto;
+    left: 12px;
+}
+
+body.lang-ar .word-count {
+    text-align: left;
+}
+
+/* Reading progress fills from the right when reading right-to-left. */
+.progress-container {
+    display: flex;
+    justify-content: flex-start;
+}
+
+body.lang-ar .progress-container {
+    justify-content: flex-end;
 }
 
 /* --- Respect Reduced-Motion Preferences --- */
