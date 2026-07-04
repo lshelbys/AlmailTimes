@@ -238,9 +238,9 @@ Treat the codebase as literature and the compiler as merely your first, least im
         feedStatus: document.getElementById('feedStatus'),
         feedStatusText: document.getElementById('feedStatusText'),
         clearFilter: document.getElementById('clearFilter'),
-        searchInput: document.getElementById('searchInput'),
-        navLinks: document.querySelectorAll('.nav-links a[data-view]'),
-        themeToggle: document.getElementById('themeToggle'),
+        searchInputs: document.querySelectorAll('#searchInput, #drawerSearchInput'),
+        navLinks: document.querySelectorAll('a[data-view]'),
+        themeToggles: document.querySelectorAll('.theme-toggle'),
         progressBar: document.getElementById('readingProgress'),
         writeModal: document.getElementById('writeModal'),
         readerModal: document.getElementById('readerModal'),
@@ -252,6 +252,11 @@ Treat the codebase as literature and the compiler as merely your first, least im
         articleForm: document.getElementById('articleForm'),
         postContent: document.getElementById('postContent'),
         wordCount: document.getElementById('wordCount'),
+        navToggle: document.getElementById('navToggle'),
+        drawer: document.getElementById('mobileDrawer'),
+        drawerOverlay: document.getElementById('drawerOverlay'),
+        drawerCloseBtn: document.getElementById('drawerCloseBtn'),
+        drawerWriteBtn: document.getElementById('drawerWriteBtn'),
     };
 
     /* ================= State ================= */
@@ -268,11 +273,13 @@ Treat the codebase as literature and the compiler as merely your first, least im
         apply(mode) {
             const dark = mode === 'dark';
             document.body.classList.toggle('dark-mode', dark);
-            el.themeToggle.setAttribute('aria-pressed', String(dark));
-            el.themeToggle.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
-            const icon = el.themeToggle.querySelector('i');
-            icon.classList.toggle('fa-sun', dark);
-            icon.classList.toggle('fa-moon', !dark);
+            el.themeToggles.forEach((toggle) => {
+                toggle.setAttribute('aria-pressed', String(dark));
+                toggle.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+                const icon = toggle.querySelector('i');
+                icon.classList.toggle('fa-sun', dark);
+                icon.classList.toggle('fa-moon', !dark);
+            });
         },
         toggle() {
             const next = document.body.classList.contains('dark-mode') ? 'light' : 'dark';
@@ -441,24 +448,57 @@ Treat the codebase as literature and the compiler as merely your first, least im
 
     /* ================= Overlays (shared dialog plumbing) ================= */
 
+    // Lock background scroll whenever any modal or the mobile drawer is open.
+    function syncScrollLock() {
+        const locked = document.querySelector('.modal-overlay.active') || el.drawer.classList.contains('open');
+        document.body.style.overflow = locked ? 'hidden' : '';
+    }
+
     function openOverlay(overlay, focusEl) {
         lastFocusedElement = document.activeElement;
         overlay.classList.add('active');
         overlay.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
+        syncScrollLock();
         if (focusEl && typeof focusEl.focus === 'function') focusEl.focus();
     }
 
     function closeOverlay(overlay) {
         overlay.classList.remove('active');
         overlay.setAttribute('aria-hidden', 'true');
-        if (!document.querySelector('.modal-overlay.active')) {
-            document.body.style.overflow = '';
-        }
+        syncScrollLock();
         if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
             lastFocusedElement.focus();
         }
     }
+
+    /* ================= Mobile Drawer ================= */
+
+    const Drawer = {
+        isOpen() {
+            return el.drawer.classList.contains('open');
+        },
+        open() {
+            lastFocusedElement = document.activeElement;
+            el.drawer.classList.add('open');
+            document.body.classList.add('drawer-open');
+            el.drawer.setAttribute('aria-hidden', 'false');
+            el.navToggle.setAttribute('aria-expanded', 'true');
+            el.navToggle.setAttribute('aria-label', 'Close menu');
+            syncScrollLock();
+        },
+        close() {
+            if (!this.isOpen()) return;
+            el.drawer.classList.remove('open');
+            document.body.classList.remove('drawer-open');
+            el.drawer.setAttribute('aria-hidden', 'true');
+            el.navToggle.setAttribute('aria-expanded', 'false');
+            el.navToggle.setAttribute('aria-label', 'Open menu');
+            syncScrollLock();
+            if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+                lastFocusedElement.focus();
+            }
+        },
+    };
 
     /* ================= Reader ================= */
 
@@ -558,7 +598,7 @@ Treat the codebase as literature and the compiler as merely your first, least im
 
             // Return to Home so the author sees their new piece at the top.
             Object.assign(state, { section: 'home', category: null, query: '' });
-            el.searchInput.value = '';
+            el.searchInputs.forEach((input) => { input.value = ''; });
             renderFeed();
         },
     };
@@ -662,30 +702,46 @@ Treat the codebase as literature and the compiler as merely your first, least im
         }
     });
 
-    // Nav views.
+    // Nav views (desktop links + drawer links share the same handler).
     el.navLinks.forEach((link) => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             state.section = link.dataset.view;
             state.category = null; // switching sections clears a topic filter
+            Drawer.close();        // auto-close when a drawer link is tapped
             renderFeed();
         });
     });
 
-    // Search.
-    el.searchInput.addEventListener('input', () => {
-        state.query = el.searchInput.value.trim().toLowerCase();
+    // Search — keep the desktop and drawer inputs mirrored.
+    function setQuery(value, source) {
+        state.query = value.trim().toLowerCase();
+        el.searchInputs.forEach((input) => {
+            if (input !== source) input.value = value;
+        });
         renderFeed();
+    }
+    el.searchInputs.forEach((input) => {
+        input.addEventListener('input', () => setQuery(input.value, input));
     });
 
     el.clearFilter.addEventListener('click', () => {
         Object.assign(state, { category: null, query: '' });
-        el.searchInput.value = '';
+        el.searchInputs.forEach((input) => { input.value = ''; });
         renderFeed();
     });
 
-    // Theme.
-    el.themeToggle.addEventListener('click', () => Theme.toggle());
+    // Theme (button appears in both the desktop nav and the drawer).
+    el.themeToggles.forEach((toggle) => toggle.addEventListener('click', () => Theme.toggle()));
+
+    // Mobile drawer.
+    el.navToggle.addEventListener('click', () => (Drawer.isOpen() ? Drawer.close() : Drawer.open()));
+    el.drawerCloseBtn.addEventListener('click', () => Drawer.close());
+    el.drawerOverlay.addEventListener('click', () => Drawer.close());
+    el.drawerWriteBtn.addEventListener('click', () => {
+        Drawer.close();
+        openOverlay(el.writeModal, document.getElementById('postTitle'));
+    });
 
     // Overlays.
     el.openModalBtn.addEventListener('click', () => openOverlay(el.writeModal, document.getElementById('postTitle')));
@@ -703,16 +759,17 @@ Treat the codebase as literature and the compiler as merely your first, least im
         });
     });
 
-    // Keyboard: Escape closes dialogs, "/" jumps to search.
+    // Keyboard: Escape closes dialogs/drawer, "/" jumps to search.
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             const open = document.querySelector('.modal-overlay.active');
             if (open) closeOverlay(open);
+            else if (Drawer.isOpen()) Drawer.close();
             return;
         }
         if (e.key === '/' && !e.target.closest('input, textarea')) {
             e.preventDefault();
-            el.searchInput.focus();
+            el.searchInputs[0].focus();
         }
     });
 

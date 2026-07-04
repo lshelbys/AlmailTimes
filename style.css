@@ -534,9 +534,6 @@ body {
 }
 
 @media (max-width: 650px) {
-    .nav-links a:not(.btn) {
-        display: none;
-    }
     .articles-grid {
         grid-template-columns: 1fr;
     }
@@ -728,9 +725,8 @@ body {
 }
 
 @media (max-width: 650px) {
-    .nav-search {
-        display: none;
-    }
+    /* The desktop search hides with .nav-links at 768px; the drawer keeps
+       its own search (.drawer-search), so no global .nav-search hide here. */
     .reader-box {
         padding: 48px 28px;
     }
@@ -818,6 +814,173 @@ body {
 .reader-share.copied {
     border-color: var(--color-accent);
     color: var(--color-accent);
+}
+
+/* --- Mobile Hamburger Toggle --- */
+.nav-toggle {
+    display: none; /* shown only under the mobile breakpoint */
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 42px;
+    height: 42px;
+    padding: 0 9px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.nav-toggle span {
+    display: block;
+    height: 2px;
+    width: 100%;
+    border-radius: 2px;
+    background-color: var(--text-primary);
+    transition: transform 0.3s var(--transition-smooth), opacity 0.2s var(--transition-smooth);
+}
+
+/* Morph the three bars into an X when the drawer is open. */
+body.drawer-open .nav-toggle span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+}
+body.drawer-open .nav-toggle span:nth-child(2) {
+    opacity: 0;
+}
+body.drawer-open .nav-toggle span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+}
+
+/* --- Mobile Slide-out Drawer --- */
+.drawer-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(30, 25, 21, 0.4);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s var(--transition-smooth);
+    z-index: 1050;
+}
+
+body.drawer-open .drawer-overlay {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.mobile-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    height: 100dvh;
+    width: 82%;
+    max-width: 340px;
+    background-color: var(--bg-main);
+    border-left: 1px solid var(--border-light);
+    box-shadow: -20px 0 60px rgba(30, 25, 21, 0.18);
+    padding: 24px;
+    z-index: 1051;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transform: translateX(100%);
+    transition: transform 0.35s var(--transition-smooth);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+body.drawer-open .mobile-drawer {
+    transform: translateX(0);
+}
+
+.drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.drawer-logo {
+    font-family: var(--font-serif);
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.8px;
+    color: var(--text-primary);
+}
+
+.drawer-logo span {
+    color: var(--color-accent);
+}
+
+.drawer-search {
+    margin-bottom: 8px;
+}
+
+.drawer-search input {
+    width: 100%;
+}
+
+.drawer-links {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    border-top: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+    margin: 8px 0 20px 0;
+}
+
+.drawer-links a {
+    text-decoration: none;
+    color: var(--text-primary);
+    font-family: var(--font-serif);
+    font-size: 1.4rem;
+    padding: 14px 4px;
+    transition: color 0.2s var(--transition-smooth);
+}
+
+.drawer-links a:hover,
+.drawer-links a.active {
+    color: var(--color-accent);
+}
+
+.drawer-footer {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 20px;
+}
+
+.drawer-write {
+    flex: 1;
+    justify-content: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px;
+    font-size: 0.95rem;
+}
+
+/* --- Mobile Breakpoint: swap desktop nav for the hamburger --- */
+@media (max-width: 768px) {
+    .nav-links {
+        display: none;
+    }
+    .nav-toggle {
+        display: flex;
+    }
+    .nav-container {
+        padding: 16px 20px;
+    }
+}
+
+/* Keep the drawer strictly a mobile affordance. */
+@media (min-width: 769px) {
+    .mobile-drawer,
+    .drawer-overlay {
+        display: none;
+    }
 }
 
 /* --- Theme Toggle --- */
