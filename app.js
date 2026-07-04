@@ -1,5 +1,5 @@
 /* ============================================================
-   Chronicle — front-end application logic (vanilla JS)
+   Almail Times — front-end application logic (vanilla JS)
 
    Modules:
      Store      localStorage wrapper (safe in private mode)
@@ -38,6 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
         },
     };
 
+    // Storage keys keep the original "chronicle." namespace so existing
+    // readers' saved articles, drafts, bookmarks, and preferences survive
+    // the rebrand to Almail Times.
     const KEYS = {
         articles: 'chronicle.articles',
         draft: 'chronicle.draft',
