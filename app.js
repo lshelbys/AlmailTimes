@@ -1139,6 +1139,18 @@ Treat the codebase as literature and the compiler as merely your first, least im
         });
     });
 
+    // Clicking the wordmark (header, drawer, or footer) returns to a clean Home.
+    document.querySelectorAll('.logo, .drawer-logo, .footer-logo').forEach((logo) => {
+        logo.addEventListener('click', (e) => {
+            e.preventDefault();
+            Object.assign(state, { section: 'home', category: null, query: '' });
+            el.searchInputs.forEach((input) => { input.value = ''; });
+            Drawer.close();
+            renderFeed();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    });
+
     // Search — keep the desktop and drawer inputs mirrored.
     function setQuery(value, source) {
         state.query = value.trim().toLowerCase();

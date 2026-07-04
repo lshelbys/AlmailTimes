@@ -383,6 +383,11 @@ body {
     font-family: var(--font-serif);
     color: var(--text-primary);
     font-weight: bold;
+    cursor: pointer;
+}
+
+.drawer-logo {
+    cursor: pointer;
 }
 
 .footer-logo span {
