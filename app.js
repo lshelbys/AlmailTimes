@@ -349,6 +349,21 @@ Treat the codebase as literature and the compiler as merely your first, least im
                 Store.write(KEYS.articles, mine);
                 return decorate(post, true);
             },
+            // Edit an existing user post in place; id and timestamp are kept
+            // stable so bookmarks, view counts, and deep links keep working.
+            update(id, { title, author, category, content, image }) {
+                const post = mine.find((a) => a.id === id);
+                if (!post) return null;
+                Object.assign(post, { title, author, category, content, image: image || '' });
+                Store.write(KEYS.articles, mine);
+                return decorate(post, true);
+            },
+            isMine(id) {
+                return mine.some((a) => a.id === id);
+            },
+            rawById(id) {
+                return mine.find((a) => a.id === id) || null;
+            },
             removeById(id) {
                 const idx = mine.findIndex((a) => a.id === id);
                 if (idx === -1) return;
@@ -390,6 +405,12 @@ Treat the codebase as literature and the compiler as merely your first, least im
         drawerOverlay: document.getElementById('drawerOverlay'),
         drawerCloseBtn: document.getElementById('drawerCloseBtn'),
         drawerWriteBtn: document.getElementById('drawerWriteBtn'),
+        modalTitle: document.getElementById('modalTitle'),
+        publishBtn: document.getElementById('publishBtn'),
+        readerRelated: document.getElementById('readerRelated'),
+        backToTop: document.getElementById('backToTop'),
+        toastRegion: document.getElementById('toastRegion'),
+        themeColorMeta: document.getElementById('themeColorMeta'),
     };
 
     /* ================= State ================= */
@@ -406,6 +427,8 @@ Treat the codebase as literature and the compiler as merely your first, least im
         apply(mode) {
             const dark = mode === 'dark';
             document.body.classList.toggle('dark-mode', dark);
+            // Keep the mobile browser chrome color in sync with the canvas.
+            if (el.themeColorMeta) el.themeColorMeta.setAttribute('content', dark ? '#1b1512' : '#fbf2e6');
             el.themeToggles.forEach((toggle) => {
                 toggle.setAttribute('aria-pressed', String(dark));
                 toggle.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
@@ -421,6 +444,26 @@ Treat the codebase as literature and the compiler as merely your first, least im
         },
         init() {
             this.apply(Store.read(KEYS.theme, 'light'));
+        },
+    };
+
+    /* ================= Toasts ================= */
+
+    const Toast = {
+        show(message, icon = 'fa-circle-check') {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.setAttribute('role', 'status');
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i><span></span>`;
+            toast.querySelector('span').textContent = message; // textContent = no injection
+            el.toastRegion.appendChild(toast);
+            // Force reflow so the transition runs, then reveal.
+            requestAnimationFrame(() => toast.classList.add('show'));
+            setTimeout(() => {
+                toast.classList.remove('show');
+                toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+                setTimeout(() => toast.remove(), 500); // fallback if transitionend doesn't fire
+            }, 2600);
         },
     };
 
@@ -449,6 +492,13 @@ Treat the codebase as literature and the compiler as merely your first, least im
             statusQuery: 'Results for “{q}”',
             statusBoth: 'Results for “{q}” in topic “{cat}”',
             langLabel: 'ع', langAria: 'التبديل إلى العربية',
+            editTitle: 'Edit Story', update: 'Update Piece',
+            editStory: 'Edit story',
+            relatedHeading: 'More in {cat}',
+            toastPublished: 'Story published', toastUpdated: 'Story updated',
+            toastSaved: 'Saved to your list', toastUnsaved: 'Removed from saved',
+            toastDeleted: 'Story deleted', toastCopied: 'Link copied to clipboard',
+            toastDraft: 'Draft saved',
         },
         ar: {
             write: 'اكتب',
@@ -472,6 +522,13 @@ Treat the codebase as literature and the compiler as merely your first, least im
             statusQuery: 'نتائج البحث عن «{q}»',
             statusBoth: 'نتائج «{q}» ضمن موضوع «{cat}»',
             langLabel: 'EN', langAria: 'Switch to English',
+            editTitle: 'عدّل المقال', update: 'حدّث المقال',
+            editStory: 'تعديل المقال',
+            relatedHeading: 'المزيد في {cat}',
+            toastPublished: 'تم نشر المقال', toastUpdated: 'تم تحديث المقال',
+            toastSaved: 'أُضيف إلى قائمتك', toastUnsaved: 'أُزيل من المحفوظة',
+            toastDeleted: 'تم حذف المقال', toastCopied: 'نُسخ الرابط إلى الحافظة',
+            toastDraft: 'تم حفظ المسودة',
         },
     };
 
@@ -518,6 +575,7 @@ Treat the codebase as literature and the compiler as merely your first, least im
 
             renderFeed();
             Composer.updateWordCount();
+            Composer.applyMode(); // keep the write dialog's heading/submit labels correct
             if (el.readerModal.classList.contains('active') && Reader.currentId) {
                 const article = Articles.byId(Reader.currentId);
                 if (article) Reader.fill(article);
@@ -555,11 +613,15 @@ Treat the codebase as literature and the compiler as merely your first, least im
                     aria-pressed="${saved}" aria-label="${saved ? 'Remove from saved stories' : 'Save story'}">
                 <i class="fa-${saved ? 'solid' : 'regular'} fa-bookmark"></i>
             </button>`;
+        const edit = article.mine ? `
+            <button type="button" class="card-action-btn edit-btn" aria-label="${esc(t('editStory'))}">
+                <i class="fa-regular fa-pen-to-square"></i>
+            </button>` : '';
         const del = article.mine ? `
             <button type="button" class="card-action-btn delete-btn" aria-label="Delete story">
                 <i class="fa-regular fa-trash-can"></i>
             </button>` : '';
-        return `<div class="card-actions">${bookmark}${del}</div>`;
+        return `<div class="card-actions">${bookmark}${edit}${del}</div>`;
     }
 
     function cardHTML(article) {
@@ -758,7 +820,41 @@ Treat the codebase as literature and the compiler as merely your first, least im
             document.getElementById('readerReadTime').textContent = `• ${t('minRead', { n: num(article.readTime) })}`;
             document.getElementById('readerDate').textContent = `• ${formatDate(article.date)}`;
             document.getElementById('readerBody').textContent = article.content;
+            this.renderRelated(article);
             this.resetShareBtn();
+        },
+
+        // Up to three other stories in the same topic, as clickable links.
+        renderRelated(article) {
+            const related = Articles.all()
+                .filter((a) => a.id !== article.id && a.category.toLowerCase() === article.category.toLowerCase())
+                .slice(0, 3);
+            if (!related.length) {
+                el.readerRelated.hidden = true;
+                el.readerRelated.replaceChildren();
+                return;
+            }
+            const frag = document.createDocumentFragment();
+            const heading = document.createElement('p');
+            heading.className = 'reader-related-heading';
+            heading.textContent = t('relatedHeading', { cat: article.category });
+            frag.appendChild(heading);
+            related.forEach((a) => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'reader-related-item';
+                item.dataset.relatedId = a.id;
+                const title = document.createElement('span');
+                title.className = 'rr-title';
+                title.textContent = a.title;
+                const meta = document.createElement('span');
+                meta.className = 'rr-meta';
+                meta.textContent = `${a.author} • ${t('minRead', { n: num(a.readTime) })}`;
+                item.append(title, meta);
+                frag.appendChild(item);
+            });
+            el.readerRelated.replaceChildren(frag);
+            el.readerRelated.hidden = false;
         },
 
         open(article) {
@@ -798,6 +894,7 @@ Treat the codebase as literature and the compiler as merely your first, least im
             }
             el.readerShareBtn.classList.add('copied');
             el.readerShareBtn.querySelector('span').textContent = t('copied');
+            Toast.show(t('toastCopied'), 'fa-link');
             setTimeout(() => this.resetShareBtn(), 2000);
         },
     };
@@ -807,6 +904,8 @@ Treat the codebase as literature and the compiler as merely your first, least im
     const DRAFT_FIELDS = ['postTitle', 'postAuthor', 'postCategory', 'postImage', 'postContent'];
 
     const Composer = {
+        editingId: null,
+
         updateWordCount() {
             const words = countWords(el.postContent.value);
             const wordLabel = words === 1 ? t('wordsOne') : t('words', { n: num(words) });
@@ -814,10 +913,42 @@ Treat the codebase as literature and the compiler as merely your first, least im
             el.wordCount.textContent = `${wordLabel} • ~${readLabel}`;
         },
 
+        // Swap the dialog heading/submit label between "new" and "edit" modes.
+        applyMode() {
+            const editing = this.editingId !== null;
+            el.modalTitle.textContent = t(editing ? 'editTitle' : 'draftTitle');
+            el.publishBtn.textContent = t(editing ? 'update' : 'publish');
+            // In edit mode "Save Draft" is irrelevant; hide it.
+            el.saveDraftBtn.hidden = editing;
+        },
+
+        // Open blank (restoring any draft) for a new piece.
+        openNew() {
+            this.editingId = null;
+            this.applyMode();
+            openOverlay(el.writeModal, document.getElementById('postTitle'));
+        },
+
+        // Open pre-filled to edit one of the reader's own stories.
+        openEdit(id) {
+            const post = Articles.rawById(id);
+            if (!post) return;
+            this.editingId = id;
+            document.getElementById('postTitle').value = post.title;
+            document.getElementById('postAuthor').value = post.author;
+            document.getElementById('postCategory').value = post.category;
+            document.getElementById('postImage').value = post.image || '';
+            document.getElementById('postContent').value = post.content;
+            this.updateWordCount();
+            this.applyMode();
+            openOverlay(el.writeModal, document.getElementById('postTitle'));
+        },
+
         saveDraft() {
             const draft = {};
             DRAFT_FIELDS.forEach((id) => { draft[id] = document.getElementById(id).value; });
             Store.write(KEYS.draft, draft);
+            Toast.show(t('toastDraft'), 'fa-floppy-disk');
         },
 
         restoreDraft() {
@@ -839,6 +970,24 @@ Treat the codebase as literature and the compiler as merely your first, least im
             // Guard against whitespace-only submissions that slip past `required`.
             if (!fields.title || !fields.author || !fields.category || !fields.content) return;
 
+            if (this.editingId !== null) {
+                // Update in place; leave the current view/filters as they are.
+                const article = Articles.update(this.editingId, fields);
+                justPublishedId = null;
+                this.editingId = null;
+                el.articleForm.reset();
+                this.updateWordCount();
+                this.applyMode();
+                closeOverlay(el.writeModal);
+                renderFeed();
+                // If the edited story is open in the reader, refresh it.
+                if (article && el.readerModal.classList.contains('active') && Reader.currentId === article.id) {
+                    Reader.fill(article);
+                }
+                Toast.show(t('toastUpdated'), 'fa-pen-to-square');
+                return;
+            }
+
             const article = Articles.add(fields);
             justPublishedId = article.id;
 
@@ -851,6 +1000,7 @@ Treat the codebase as literature and the compiler as merely your first, least im
             Object.assign(state, { section: 'home', category: null, query: '' });
             el.searchInputs.forEach((input) => { input.value = ''; });
             renderFeed();
+            Toast.show(t('toastPublished'), 'fa-circle-check');
         },
     };
 
@@ -863,6 +1013,7 @@ Treat the codebase as literature and the compiler as merely your first, least im
             const pct = totalScrollable > 0 ? (window.scrollY / totalScrollable) * 100 : 0;
             el.progressBar.style.width = `${pct}%`;
             el.progressBar.setAttribute('aria-valuenow', Math.round(pct));
+            el.backToTop.classList.toggle('visible', window.scrollY > 600);
             this.ticking = false;
         },
         onScroll() {
@@ -890,7 +1041,12 @@ Treat the codebase as literature and the compiler as merely your first, least im
         Bookmarks.removeFor(id);
         delete viewCounts[id];
         Store.write(KEYS.views, viewCounts);
+        // If the deleted story is open in the reader, close it.
+        if (el.readerModal.classList.contains('active') && Reader.currentId === id) {
+            closeOverlay(el.readerModal);
+        }
         renderFeed();
+        Toast.show(t('toastDeleted'), 'fa-trash-can');
     }
 
     /* ================= Router ================= */
@@ -921,8 +1077,18 @@ Treat the codebase as literature and the compiler as merely your first, least im
         const bookmarkBtn = e.target.closest('.bookmark-btn');
         if (bookmarkBtn) {
             e.preventDefault();
-            Bookmarks.toggle(bookmarkBtn.closest('[data-id]').dataset.id);
+            const id = bookmarkBtn.closest('[data-id]').dataset.id;
+            Bookmarks.toggle(id);
+            Toast.show(Bookmarks.has(id) ? t('toastSaved') : t('toastUnsaved'),
+                Bookmarks.has(id) ? 'fa-bookmark' : 'fa-circle-minus');
             renderFeed();
+            return;
+        }
+
+        const editBtn = e.target.closest('.edit-btn');
+        if (editBtn) {
+            e.preventDefault();
+            Composer.openEdit(editBtn.closest('[data-id]').dataset.id);
             return;
         }
 
@@ -930,6 +1096,15 @@ Treat the codebase as literature and the compiler as merely your first, least im
         if (deleteBtn) {
             e.preventDefault();
             handleDelete(deleteBtn);
+            return;
+        }
+
+        // Related stories live inside the reader dialog; handle before the guard.
+        const relatedItem = e.target.closest('.reader-related-item');
+        if (relatedItem) {
+            e.preventDefault();
+            const article = Articles.byId(relatedItem.dataset.relatedId);
+            if (article) Reader.open(article); // replaces reader content + scrolls to top
             return;
         }
 
@@ -997,11 +1172,11 @@ Treat the codebase as literature and the compiler as merely your first, least im
     el.drawerOverlay.addEventListener('click', () => Drawer.close());
     el.drawerWriteBtn.addEventListener('click', () => {
         Drawer.close();
-        openOverlay(el.writeModal, document.getElementById('postTitle'));
+        Composer.openNew();
     });
 
     // Overlays.
-    el.openModalBtn.addEventListener('click', () => openOverlay(el.writeModal, document.getElementById('postTitle')));
+    el.openModalBtn.addEventListener('click', () => Composer.openNew());
     el.closeModalBtn.addEventListener('click', () => closeOverlay(el.writeModal));
     el.readerCloseBtn.addEventListener('click', () => closeOverlay(el.readerModal));
     el.readerShareBtn.addEventListener('click', () => Reader.share());
@@ -1016,12 +1191,18 @@ Treat the codebase as literature and the compiler as merely your first, least im
         });
     });
 
-    // Keyboard: Escape closes dialogs/drawer, "/" jumps to search.
+    // Keyboard: Escape closes dialogs/drawer, "/" jumps to search, Tab is
+    // trapped inside an open dialog for accessibility.
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             const open = document.querySelector('.modal-overlay.active');
             if (open) closeOverlay(open);
             else if (Drawer.isOpen()) Drawer.close();
+            return;
+        }
+        if (e.key === 'Tab') {
+            const open = document.querySelector('.modal-overlay.active');
+            if (open) trapFocus(e, open);
             return;
         }
         if (e.key === '/' && !e.target.closest('input, textarea')) {
@@ -1030,6 +1211,24 @@ Treat the codebase as literature and the compiler as merely your first, least im
         }
     });
 
+    // Keep Tab focus cycling within the active dialog.
+    function trapFocus(e, overlay) {
+        const focusable = overlay.querySelectorAll(
+            'a[href], button:not([disabled]):not([hidden]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        const items = Array.from(focusable).filter((n) => n.offsetParent !== null);
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    }
+
     // Composer.
     el.postContent.addEventListener('input', () => Composer.updateWordCount());
     el.articleForm.addEventListener('submit', (e) => {
@@ -1037,7 +1236,11 @@ Treat the codebase as literature and the compiler as merely your first, least im
         Composer.publish();
     });
 
-    // Progress bar.
+    // Back to top.
+    el.backToTop.hidden = false; // visibility is handled via the .visible class
+    el.backToTop.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+    // Progress bar (also toggles the back-to-top button).
     window.addEventListener('scroll', () => Progress.onScroll());
 
     /* ================= Init ================= */
