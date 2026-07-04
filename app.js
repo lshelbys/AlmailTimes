@@ -38,17 +38,35 @@ document.addEventListener('DOMContentLoaded', () => {
         },
     };
 
-    // Storage keys keep the original "chronicle." namespace so existing
-    // readers' saved articles, drafts, bookmarks, and preferences survive
-    // the rebrand to Almail Times.
     const KEYS = {
-        articles: 'chronicle.articles',
-        draft: 'chronicle.draft',
-        views: 'chronicle.views',
-        bookmarks: 'chronicle.bookmarks',
-        theme: 'chronicle.theme',
-        lang: 'chronicle.lang',
+        articles: 'almailTimes.articles',
+        draft: 'almailTimes.draft',
+        views: 'almailTimes.views',
+        bookmarks: 'almailTimes.bookmarks',
+        theme: 'almailTimes.theme',
+        lang: 'almailTimes.lang',
     };
+
+    // One-time migration: carry existing readers' data over from the legacy
+    // "chronicle." namespace so the rebrand doesn't wipe saved articles,
+    // drafts, bookmarks, theme, or language. Idempotent and safe to re-run.
+    (() => {
+        try {
+            Object.keys(KEYS).forEach((name) => {
+                const legacyKey = `chronicle.${name}`;
+                const legacyVal = localStorage.getItem(legacyKey);
+                if (legacyVal === null) return;
+                // Copy the legacy value only if the new key is empty (never
+                // clobber newer data), then always retire the legacy key.
+                if (localStorage.getItem(KEYS[name]) === null) {
+                    localStorage.setItem(KEYS[name], legacyVal);
+                }
+                localStorage.removeItem(legacyKey);
+            });
+        } catch (err) {
+            /* Storage unavailable (private mode / disabled); nothing to migrate. */
+        }
+    })();
 
     /* ================= Utilities ================= */
 
